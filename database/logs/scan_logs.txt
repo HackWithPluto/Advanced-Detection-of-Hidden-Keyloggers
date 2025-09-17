@@ -1,0 +1,10 @@
+2025-09-17 13:26:12 → Process: VisualStudi0Setup..exe (PID 17780) →  Suspicious process detected
+2025-09-17 13:26:12 → Process: VisualStudi0Setup..exe (PID 12440) →  Suspicious process detected
+2025-09-17 13:26:14 → VisualStudi0Setup..exe (PID 17780) →  Process terminated
+2025-09-17 13:26:14 → VisualStudi0Setup..exe (PID 12440) →  Process terminated
+2025-09-17 13:26:30 → C:/Users/shubh/OneDrive/Desktop/PLUTO/Projects/Demo Keyloggers/VisualStudi0Setup...exe → Clean (0 matches)
+2025-09-17 13:26:44 → C:/Users/shubh/OneDrive/Desktop/PLUTO/Projects/Demo Keyloggers/VisualStudi0Setup..exe → Keylogger Detected (32 suspicious patterns)
+2025-09-17 13:26:55 → C:/Users/shubh/OneDrive/Desktop/PLUTO/Projects/Demo Keyloggers/UNIT IV notes  NS NT TY ..docx → Keylogger Detected (17 suspicious patterns)
+2025-09-17 13:26:55 → C:/Users/shubh/OneDrive/Desktop/PLUTO/Projects/Demo Keyloggers/UNIT IV notes  NS NT TY.docx → Clean (0 matches)
+2025-09-17 13:26:55 → C:/Users/shubh/OneDrive/Desktop/PLUTO/Projects/Demo Keyloggers/VisualStudi0Setup...exe → Clean (0 matches)
+2025-09-17 13:27:00 → C:/Users/shubh/OneDrive/Desktop/PLUTO/Projects/Demo Keyloggers/VisualStudi0Setup..exe → Keylogger Detected (32 suspicious patterns)
