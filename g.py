@@ -323,3 +323,9 @@ class LandingPage(QWidget):
         app_tk.protocol("WM_DELETE_WINDOW", on_exit)
         app_tk.mainloop()
 
+# ---------------- Main ----------------
+if __name__ == "__main__":
+    app = QApplication(sys.argv)
+    window = LandingPage()
+    window.show()
+    sys.exit(app.exec_())

@@ -1,5 +1,8 @@
-from gui import AntiKeyloggerScanner
+from gui import QApplication, LandingPage
+import sys
 
 if __name__ == "__main__":
-    app = AntiKeyloggerScanner()
-    app.mainloop()
+    app = QApplication(sys.argv)
+    window = LandingPage()
+    window.show()
+    sys.exit(app.exec_())

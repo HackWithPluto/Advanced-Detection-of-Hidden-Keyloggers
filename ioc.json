@@ -1,5 +1,5 @@
 [
-  "keylogger1.exe",
+  "keylogger.exe",
   "klg.exe",
   "logger.exe",
   "winlog.exe",
@@ -17,5 +17,7 @@
   "ghostpress",
   "refog",
   "actualspy",
-  "VisualStudi0Setup."
+  "VisualStudi0Setup.",
+  "fake chrome.exe",
+  "Chrome.exe"
 ]
