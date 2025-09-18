@@ -222,3 +222,5 @@ def scan_system_processes_thread(result_box, progress_bar=None, callback=None, o
             on_complete()
 
     threading.Thread(target=worker, daemon=True).start()
+
+#done

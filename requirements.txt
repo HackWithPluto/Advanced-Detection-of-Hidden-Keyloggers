@@ -1,3 +1,4 @@
+#required Packages
 PyPDF2
 Pillow
 customtkinter

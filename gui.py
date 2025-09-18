@@ -32,7 +32,7 @@ class ScanPage(ctk.CTk):
         else:
             self.show_menu()
 
-    # Menu
+  
     def show_menu(self):
         self.clear_screen()
 
