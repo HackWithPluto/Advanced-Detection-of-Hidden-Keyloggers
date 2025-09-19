@@ -120,7 +120,7 @@ It is recommended to use a **virtual environment (venv)** for clean dependency m
 If you want to create a standalone .exe:
    ```bash
    pip install pyinstaller
-   pyinstaller --onefile --windowed --icon=Assets/icon.ico main.py
+   pyinstaller.exe --onefile --windowed --icon=.\Assets\KeyDefender.ico --name KeyDefender --add-data "database/images/background.png;images" main.py
 ```
 The executable will be available inside the dist/ folder.
 
