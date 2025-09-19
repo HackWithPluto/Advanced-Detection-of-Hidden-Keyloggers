@@ -218,6 +218,15 @@ class ScanPage(ctk.CTk):
             self.return_callback()
 
 
+# ---------------- Resource path for PyInstaller ----------------
+def resource_path(relative_path):
+    """ Get absolute path to resource, works for dev and for PyInstaller """
+    try:
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+    return os.path.join(base_path, relative_path)
+
 
 # ---------------- PyQt5 Landing Page ----------------
 class LandingPage(QWidget):
@@ -226,7 +235,7 @@ class LandingPage(QWidget):
         self.setWindowTitle("Advanced Detection of Hidden Keyloggers")
         self.setGeometry(200, 100, 1000, 650)
 
-        # Background
+        # Background label
         self.bg_label = QLabel(self)
         self.bg_label.setGeometry(0, 0, self.width(), self.height())
         self.bg_label.lower()
@@ -291,24 +300,29 @@ class LandingPage(QWidget):
 
         for btn in [scan_file_btn, scan_folder_btn, system_scan_btn, exit_btn]:
             self.layout.addWidget(btn)
+
         self.layout.addStretch()
         self.setLayout(self.layout)
 
+    # ---------------- Update Background ----------------
     def update_background(self):
-        bg_path = "database/images/background.png"
+        bg_path = resource_path("database/images/background.png")
         if os.path.exists(bg_path):
             pixmap = QPixmap(bg_path)
-            self.bg_label.setPixmap(pixmap.scaled(self.size(), Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation))
+            self.bg_label.setPixmap(pixmap.scaled(
+                self.size(),
+                Qt.KeepAspectRatioByExpanding,
+                Qt.SmoothTransformation
+            ))
 
+    # Resize background dynamically
     def resizeEvent(self, event):
         self.update_background()
         super().resizeEvent(event)
 
+    # Launch Tkinter Scan Page
     def launch_scan_page(self, mode):
-        """Open Tkinter scan page and hide PyQt landing page"""
         self.hide()
-
-        # Launch Tkinter ScanPage
         app_tk = ScanPage(mode, return_callback=self.show)
 
         # Proper exit handling
@@ -322,4 +336,3 @@ class LandingPage(QWidget):
 
         app_tk.protocol("WM_DELETE_WINDOW", on_exit)
         app_tk.mainloop()
-
