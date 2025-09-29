@@ -197,10 +197,13 @@ def scan_system_processes_thread(result_box, progress_bar=None, callback=None, o
                 if result_box.master:
                     from tkinter import messagebox
                     if messagebox.askyesno("Kill Process",
-                                           f"Do you want to terminate {image} (PID {pid})?",
-                                           parent=result_box.master):
-                        success, output = kill_process(pid, image)
-                        append_result_safe(result_box, output.strip())
+                                        f"Do you want to terminate {image} (PID {pid})?",
+                                        parent=result_box.master):
+                        result = kill_process([(image, pid)])
+                        # FIX: loop over result dict instead of looking only for pid
+                        for proc_id, (success, output) in result.items():
+                            append_result_safe(result_box, f"{image} → {output.strip()}")
+
 
                 # Smooth live progress
                 steps = 10
@@ -222,5 +225,3 @@ def scan_system_processes_thread(result_box, progress_bar=None, callback=None, o
             on_complete()
 
     threading.Thread(target=worker, daemon=True).start()
-
-#done
