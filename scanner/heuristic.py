@@ -118,7 +118,7 @@ def detect_file(file_path, threshold=5):
         # Determine verdict
         # -----------------------------
         match_count = len(all_matches)
-        if match_count >= 10:
+        if match_count >= 9:
             verdict = f"Keylogger Detected ({match_count} suspicious patterns)"
         elif match_count >= 7:
             verdict = f"Suspicion ({match_count} patterns)"
