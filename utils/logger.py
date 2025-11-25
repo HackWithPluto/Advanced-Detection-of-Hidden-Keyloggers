@@ -45,3 +45,4 @@ def log_scan_end(scan_type="File/Folder"):
     Optional: Log end of scan.
     """
     log_detection(f"--- Finished {scan_type} Scan ---", "")
+

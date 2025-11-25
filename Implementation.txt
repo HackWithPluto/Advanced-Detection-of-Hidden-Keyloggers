@@ -1,0 +1,155 @@
+Goal: Add a new time-window scanning feature that (A) selects files from configured folders whose creation or modification time is within the configured day window (default 30 days), (B) sends them one-by-one to the existing scan engine, (C) displays results in existing UI using the same color/label rules, (D) triggers automatically on tool start, on a configurable periodic interval (default 1 hour), and on external storage insertion, and (E) logs permanently to the existing logs file.
+
+Reference: Integrate with the current project structure and contracts (scanner/file_scanner, thread.py, gui.py, utils/logger.py, utils/quarantine.py). See project layout and behavior for scanning, verdicts, UI coloring, and logging in the old project. 
+
+
+Files to add & modify
+
+Add: scanner/autoscan.py — new module that implements time-window selection, queueing, and integration with the legacy scan API.
+
+Modify: thread.py — add new thread functions that call scanner.autoscan.run_autoscan_scan(...) and integrate stop_event and GUI-safe callbacks.
+
+Modify: gui.py — under Settings tab add a new control: Time Window (days) numeric field (day precision) with default 30. Add checkboxes/selection in Settings for which predefined folders to scan (predefine Desktop and Downloads). Add toggle for auto-scan interval (default enabled, 1 hour) and a field to set interval in minutes.
+
+Modify: utils/logger.py — ensure log_detection appends every scan result entry (no automatic deletion). Keep format YYYY-MM-DD HH:MM:SS → <item> → <result>.
+
+Add/Modify: project configuration entry (e.g., config.json or config.py at project root). Include keys:
+
+{
+  "time_window_days": 30,
+  "auto_scan_interval_minutes": 60,
+  "scan_folders_default": ["<USER_DESKTOP>", "<USER_DOWNLOADS>"],
+  "log_path": "database/logs/scan_logs.txt",
+  "quarantine_path": "database/quarantine"
+}
+
+
+Implementation note: resolve <USER_DESKTOP> and <USER_DOWNLOADS> dynamically per OS/current user.
+
+Behavioral requirements (exact)
+
+Selection rule: select file if file.ctime >= now - time_window_days OR file.mtime >= now - time_window_days. Use system-native creation time when available (Windows CreationTime, Linux use inode ctime as closest).
+
+Folder scope: default only Desktop and Downloads (per config). Provide UI to add/remove folders later, but pre-populate with Desktop & Downloads. Scans must only include files inside the selected folders (and their subfolders).
+
+Scan trigger: at tool startup run a one-shot scan; run periodic auto-scan every auto_scan_interval_minutes (default 60); immediately trigger a scan when an external removable storage device is inserted.
+
+External storage detection: implement a simple cross-platform detection (Windows: listen for WM_DEVICECHANGE or check win32api/psutil mount events; Linux: poll /proc/mounts or use pyudev/inotify), then queue all files from the mounted removable device that satisfy the time-window selection. (If dependency is heavy, a lightweight poll-on-mount every 5–10s is acceptable.)
+
+Queue & execution: send files one-by-one to the existing scanner.file_scanner.scan_file(file_path) (or the analyzer API used by threads). Respect the scanner’s contract: expect returned dict { file, status, action, verdict, matches }.
+
+Timeouts & error handling: impose a configurable per-file timeout (default 120s). On timeout or engine error mark status error, log it, and continue the queue; retry once for transient errors.
+
+UI reporting: re-use existing ScanPage append log callbacks and color tags so results appear exactly as in the old project:
+
+Suspicious/Keylogger → red tag and "KEYLOGGER DETECTED" text.
+
+Normal/Clean → green tag and "CLEAN FILE" / "Normal (N patterns)" per engine verdict.
+
+Insert "--- Scan Completed ---" banner on completion (same behavior). Update the progress bar live via GUI-safe callbacks. Duplicate suppression must be preserved.
+
+Actions: keep Delete, Quarantine, Mark Normal behavior unchanged (call existing utils/quarantine.quarantine_file and logger). Quarantine should still move files into database/quarantine and record original metadata.
+
+Logging: append every scan result into database/logs/scan_logs.txt using the same line format already in use. Keep logs permanent (do not auto-delete on new scans). The UI Clean button still only clears the on-screen view and must not clear the log file.
+
+Old logs display management: per your instruction logs persist, but the results window should show only the latest run’s items. On each new run the UI clears the on-screen list (same as pressing Clean) then appends the new results; underlying log file remains appended.
+
+Settings persistence: persist updated settings (time window days, selected folders, scan interval) to config.json (or config.py) so they survive restarts.
+
+Integration & placement decisions (where to add)
+
+Create scanner/timewindow_scanner.py. Export a primary function:
+
+def collect_files_for_window(folders: list[str], days: int) -> list[str]:
+    ...
+def run_timewindow_scan(folders: list[str], days: int, per_file_timeout:int, callbacks: dict, stop_event) -> dict:
+    ...
+
+
+run_timewindow_scan will iterate the file list and call scanner.file_scanner.scan_file for each, invoking GUI callbacks (append_result_safe, update_progress_safe) and utils.logger.log_detection.
+
+In thread.py, add scan_timewindow_thread that spawns run_timewindow_scan in a separate thread and hooks into stop_event. This keeps consistency with existing thread APIs used by gui.py. Preserve returned dict schema used by GUI. 
+
+In gui.py under Settings add UI controls and call thread.scan_timewindow_thread when user starts scan, on startup (auto-run), on schedule (timer), and on removable mount events. Reuse GUI callback functions defined for live scans (log callback & complete callback). 
+
+
+Testing constraints
+
+Do not create test files on disk. All tests will be performed by running the tool in-place. Implement logging for all major events to make testing observable.
+
+Add verbose debug logging mode (config toggle) so testers can enable extra logs for mount detection, file collection, per-file timeout events, and engine errors.
+
+Non-functional requirements
+
+Keep dependencies minimal. If external libs are used for device detection, document them and add to requirements.txt. Prefer builtin libs + psutil if possible.
+
+Maintain thread-safety and GUI responsiveness (use .after() or existing safe callbacks to update GUI).
+
+Preserve verdict string constants and dict schema returned by scanner (so existing UI and quarantine logic remains compatible). 
+
+
+Deliverables
+
+scanner/timewindow_scanner.py (new).
+
+Modified thread.py with scan_autoscan_thread and wiring to existing callbacks.
+
+Modified gui.py Settings tab and startup logic so tool auto-runs the auto scan and provides UI for day-precision and folder selection (Desktop & Downloads preselected).
+
+config.json (or config.py) added/updated with the keys shown above.
+
+Unit of manual test plan (short list included in commit message) describing: start tool (auto-scan runs), change days to X and run, insert removable device and verify scan starts, verify logs appended to database/logs/scan_logs.txt, verify UI shows only current run items while logs persist. (No test files are to be created by code.)
+
+Acceptance criteria (exact)
+
+On tool start the configured time-window scan runs automatically and UI shows a live result list for that run only, color-coded per existing scheme.
+
+Background auto-scan runs every configured interval and behaves identically.
+
+External removable device insertion immediately triggers a one-shot scan of files on that device satisfying the same time-window rule.
+
+Each scanned file is sent to the legacy scan engine one-by-one and the returned dict is used to update the UI and append to database/logs/scan_logs.txt.
+
+Delete / Quarantine / Mark Normal buttons function exactly as before and are available per result row.
+
+Settings persist between restarts.
+
+Implementation notes developers must follow
+
+Preserve verdict text constants ("Keylogger Detected", "Suspicion", "Normal", "Clean") and the result dict keys (file, status, action, verdict, matches) — these are consumed across the codebase. 
+
+
+Reuse existing utils/logger.log_detection for logging entries. Do not change the existing log format. 
+
+
+
+Do not clear the persisted log file on new scans. The UI may clear on-screen view only.
+
+If anything is unclear, assume: Desktop and Downloads refer to the current user's desktop and downloads paths; time-window numeric control has day precision only (integer days); default values are 30 days and 60 minutes interval. Use conservative defaults and document any added dependencies in requirements.txt.
+
+
+Change Log (Applied)
+
+- Added `scanner/autoscan.py` implementing `collect_files_for_window` and `run_autoscan_scan` with per-file timeout and duplicate suppression.
+- Updated `thread.py` to include `scan_autoscan_thread`, user path resolution, config loading, and `start_removable_monitor` using `psutil`.
+- Updated `gui.py` to add Auto Scan mode, Settings UI (days, auto-scan toggle, interval, Desktop/Downloads selection), startup auto-run, periodic auto-scan via timer, and removable device auto-scan trigger.
+- Added `config.json` at project root with defaults: days=30, interval=60, folders placeholders, log and quarantine paths, auto-scan enabled.
+- Verified `utils/logger.py` already appends logs in format `YYYY-MM-DD HH:MM:SS → <item> → <result>`.
+
+Manual Test Plan
+
+- Start the tool; confirm Auto Scan launches automatically and shows live results; on completion, `--- Scan Completed ---` appears.
+- Open Settings, change Auto Scan Window (days) to a different value; run Auto Scan manually and confirm selection respects the new window.
+- Insert a removable device with files; confirm a one-shot time-window scan starts for that device and results appear.
+- Verify `database/logs/scan_logs.txt` contains appended entries for each scanned file across runs; UI Clean only clears on-screen list.
+- Confirm periodic auto-scan triggers every configured interval and behaves like manual runs; UI shows only current run items.
+
+Regression Considerations
+
+- Existing File, Folder, and Process scanning untouched; shared callbacks preserved.
+- Verdict strings and result dict schema unchanged; quarantine and logging behavior preserved.
+- Dependencies minimal; `psutil` already listed in `requirements.txt`.
+- Developer Notes
+
+- Files changed: scanner/autoscan.py (renamed from timewindow_scanner.py), thread.py (scan_autoscan_thread, autoscan subscriber and latest results), gui.py (AutoScan Result panel, UI labels, background autoscan scheduling), config.json (autoscan_window_days), utils (restored), tests/test_autoscan.py (unit tests).
+- New/renamed functions: run_autoscan_scan, scan_autoscan_thread, register_autoscan_subscriber, AutoScanResultPanel.refresh_results.

@@ -5,9 +5,13 @@ from scanner.file_scanner import scan_file, scan_folder
 from utils.analyzer import analyze_file
 from utils.quarantine import quarantine_file
 from scanner.system_scanner import check_processes, kill_process
+from scanner.autoscan import run_autoscan_scan
+import json
 
 # Stop event to cancel scanning
 stop_event = threading.Event()
+latest_autoscan_results = []
+_autoscan_subscribers = []
 
 
 # -----------------------------
@@ -225,3 +229,124 @@ def scan_system_processes_thread(result_box, progress_bar=None, callback=None, o
             on_complete()
 
     threading.Thread(target=worker, daemon=True).start()
+
+
+# -----------------------------
+# Time-window scan
+# -----------------------------
+def _load_config():
+    try:
+        with open("config.json", "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {
+            "autoscan_window_days": 30,
+            "auto_scan_interval_minutes": 60,
+            "scan_folders_default": ["<USER_DESKTOP>", "<USER_DOWNLOADS>"],
+            "log_path": "database/logs/scan_logs.txt",
+            "quarantine_path": "database/quarantine",
+            "debug": False,
+            "auto_scan_enabled": True
+        }
+
+def _resolve_user_path(token):
+    home = os.path.expanduser("~")
+    if token == "<USER_DESKTOP>":
+        return os.path.join(home, "Desktop")
+    if token == "<USER_DOWNLOADS>":
+        return os.path.join(home, "Downloads")
+    return token
+
+def _resolve_folders(folders):
+    return [p for p in ([_resolve_user_path(f) for f in folders or []]) if p and os.path.isdir(p)]
+
+def scan_autoscan_thread(result_box, progress_bar=None, folders=None, days=None, per_file_timeout=None, callback=None, on_complete=None):
+    cfg = _load_config()
+    days = days if isinstance(days, int) else cfg.get("autoscan_window_days", 30)
+    per_file_timeout = per_file_timeout if isinstance(per_file_timeout, int) else 120
+    folders = folders if folders else _resolve_folders(cfg.get("scan_folders_default", []))
+
+    def complete_wrapper():
+        if on_complete:
+            on_complete()
+
+    def worker():
+        logged_files = set()
+
+        def log_cb(fp, status):
+            if fp in logged_files:
+                return
+            logged_files.add(fp)
+            if callback:
+                callback(fp, status)
+
+        callbacks = {
+            "append_result_safe": append_result_safe,
+            "update_progress_safe": update_progress_safe,
+            "complete_callback": complete_wrapper,
+            "log_callback": log_cb,
+            "result_box": result_box,
+            "progress_bar": progress_bar,
+        }
+
+        results = run_autoscan_scan(folders, days, per_file_timeout, callbacks, stop_event)
+        try:
+            global latest_autoscan_results
+            latest_autoscan_results = results or []
+            for sub in list(_autoscan_subscribers):
+                try:
+                    sub(latest_autoscan_results)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+    threading.Thread(target=worker, daemon=True).start()
+
+def register_autoscan_subscriber(cb):
+    try:
+        _autoscan_subscribers.append(cb)
+    except Exception:
+        pass
+
+
+# -----------------------------
+# Removable device monitor
+# -----------------------------
+def start_removable_monitor(on_detect, interval_seconds=5):
+    try:
+        import psutil
+    except Exception:
+        return None
+
+    known = set()
+
+    def is_removable(part):
+        try:
+            opts = part.opts or ""
+            if "removable" in opts.lower():
+                return True
+            mp = part.mountpoint.lower()
+            return mp.startswith("/media/") or mp.startswith("/run/media/")
+        except Exception:
+            return False
+
+    def worker():
+        while True:
+            if stop_event.is_set():
+                break
+            try:
+                parts = psutil.disk_partitions(all=True)
+                for p in parts:
+                    if is_removable(p):
+                        mp = p.mountpoint
+                        if mp not in known and os.path.isdir(mp):
+                            known.add(mp)
+                            on_detect(mp)
+                time.sleep(interval_seconds)
+            except Exception:
+                time.sleep(interval_seconds)
+
+    t = threading.Thread(target=worker, daemon=True)
+    t.start()
+    return t

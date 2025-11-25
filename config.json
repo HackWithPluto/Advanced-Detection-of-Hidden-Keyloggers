@@ -1,0 +1,9 @@
+{
+  "autoscan_window_days": 30,
+  "auto_scan_interval_minutes": 60,
+  "scan_folders_default": ["<USER_DESKTOP>", "<USER_DOWNLOADS>"],
+  "log_path": "database/logs/scan_logs.txt",
+  "quarantine_path": "database/quarantine",
+  "debug": false,
+  "auto_scan_enabled": false
+}

@@ -22,7 +22,7 @@ def quarantine_file(file_path, parent=None, ask_user=True, auto_quarantine=False
     try:
         action_taken = None
         move_file = auto_quarantine
-
+        
         if ask_user and parent:
             # Overlay frame
             overlay = ctk.CTkFrame(parent, width=500, height=180, corner_radius=15, fg_color="#2b2b2b")
@@ -88,3 +88,4 @@ def quarantine_file(file_path, parent=None, ask_user=True, auto_quarantine=False
     except Exception as e:
         log_detection(file_path, f"Failed to quarantine/delete: {e}")
         return None
+
