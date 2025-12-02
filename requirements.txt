@@ -5,6 +5,11 @@ customtkinter
 PyQt5
 psutil
 rarfile
+watchdog
+win10toast
+winotify
+pywin32
+
 #os
 #sys
 #threading

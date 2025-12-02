@@ -64,4 +64,3 @@ def analyze_file(file_path, parent=None, ask_quarantine=True):
             "status": "error",
             "action": "none"
         }
-
