@@ -5,13 +5,14 @@ import time
 import threading
 import subprocess
 import sys
+from scanner.registry import RegistryScannerDialog
 
 from PyQt6.QtCore import Qt, QTimer, QThread
 from PyQt6.QtGui import QFont, QColor
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QPushButton, QFrame, QSizePolicy, QDialog,
-    QFileDialog, QGraphicsDropShadowEffect
+    QFileDialog, QGraphicsDropShadowEffect, QMessageBox
 )
 
 from .resources import (
@@ -22,6 +23,7 @@ from .scanpage import ScanPage
 from .autoscan_result import AutoScanResultWindow
 from .scan_workers import AutoScanWorker
 from .external_drive_monitor import ExternalDriveMonitor  # Qt-native monitor
+# NOTE: SystemScannerDialog is imported lazily inside open_system_scanner()
 
 
 class LandingPage(QMainWindow):
@@ -150,7 +152,8 @@ class LandingPage(QMainWindow):
 
         add_btn("Scan File", self.scan_file)
         add_btn("Scan Folder", self.scan_folder)
-        add_btn("System Scan", self.scan_processes)
+        add_btn("System Scan", self.open_system_scanner) # new advanced system scanner
+        add_btn("Registry Scan", self.scan_registry)
         add_btn("AutoScan Results", self.view_autoscan_results)
         add_btn("Exit", self.close)
         # Settings button intentionally removed
@@ -224,6 +227,32 @@ class LandingPage(QMainWindow):
         dlg = ScanPage(parent=self, scan_type="Processes")
         dlg.exec()
 
+    def open_system_scanner(self):
+        """
+        Open the advanced System Heuristic Keylogger Scanner dialog.
+
+        We import lazily so that missing file won't crash the whole GUI.
+        """
+        try:
+            try:
+                # absolute import (when project root is in sys.path)
+                from gui.system_scanner_dialog import SystemScannerDialog as _SystemScannerDialog
+            except ImportError:
+                # fallback: relative import inside gui package
+                from .system_scanner_dialog import SystemScannerDialog as _SystemScannerDialog
+        except ImportError as e:
+            QMessageBox.critical(
+                self,
+                "System Scanner Error",
+                "System scanner module (gui/system_scanner_dialog.py) was not found.\n\n"
+                "Make sure the file exists under the 'gui' folder.\n\n"
+                f"Details:\n{e}"
+            )
+            return
+
+        dlg = _SystemScannerDialog(self)
+        dlg.exec()
+
     def view_autoscan_results(self):
         # Button that shows ONLY autoscan logs (not manual scans)
         if self._autoscan_window is None:
@@ -232,6 +261,52 @@ class LandingPage(QMainWindow):
         self._autoscan_window.show()
         self._autoscan_window.raise_()
         self._autoscan_window.activateWindow()
+
+    def scan_registry(self):
+        """
+        Open the Registry Scanner dialog modelessly and keep a reference so it isn't GC'd.
+        Uses self._registry_dialog to ensure the dialog remains open.
+        """
+        try:
+            # If already open, just raise it
+            if hasattr(self, "_registry_dialog") and self._registry_dialog is not None:
+                try:
+                    self._registry_dialog.raise_()
+                    self._registry_dialog.activateWindow()
+                    return
+                except Exception:
+                    # fall through and recreate if raising fails
+                    pass
+
+            # create dialog and keep reference on self so Python doesn't gc it
+            self._registry_dialog = RegistryScannerDialog(parent=self)
+            self._registry_dialog.show()
+            self._registry_dialog.raise_()
+            self._registry_dialog.activateWindow()
+
+            # optional: connect to dialog finished/close to clear our reference
+            try:
+                def _on_registry_closed():
+                    try:
+                        # delete reference so it can be re-created later
+                        self._registry_dialog = None
+                    except Exception:
+                        pass
+
+                # QDialog has finished/accepted/rejected signals; connect to destroyed as safe fallback
+                try:
+                    self._registry_dialog.finished.connect(lambda *_: _on_registry_closed())
+                except Exception:
+                    # fallback to destroyed signal
+                    try:
+                        self._registry_dialog.destroyed.connect(lambda *_: _on_registry_closed())
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to open Registry Scanner:\n{e}")
 
     # ---------- External drive detected callback ----------
     def _on_external_drive_detected(self, mountpoint: str):

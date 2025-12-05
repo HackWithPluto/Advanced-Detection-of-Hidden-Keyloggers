@@ -11,5 +11,5 @@
   "quarantine_path": "database/quarantine",
 
   "debug": false,
-    "auto_scan_enabled": false
+  "auto_scan_enabled": false
 }
